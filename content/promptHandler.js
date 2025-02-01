@@ -74,13 +74,28 @@ class PromptHandler {
     };
   }
 
+  createOllamaPayload() {
+    const content = this.getUserContent(this.message);
+
+    if (!content) return "";
+
+    return {
+      model: this.selectedAI,
+      messages: [
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content },
+      ],
+      stream: false,
+    };
+  }
+
   // Helper method to generate user content based on the selected menu
   getUserContent(menu) {
     const { correctGrammar, codeReview, generatePost, summarize, askAnything } =
       this.menus;
 
     if (menu.key === correctGrammar.key) {
-      return `Correct this text grammatically: ${this.selectedText}`;
+      return `Correct this text grammatically and give me only the corrected text not any other explanation: ${this.selectedText}`;
     }
 
     if (menu.key === generatePost.key) {
@@ -209,6 +224,28 @@ class PromptHandler {
       });
   }
 
+  callOllamaApi(payload) {
+    this.promptUi.showLoading();
+    return fetch("http://localhost:11434/api/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        const result = data.response || "No response";
+        this.promptUi.showModal(`<p>${result}</p>`, result);
+      })
+      .catch((error) => {
+        this.promptUi.showModal(`<p>Error: ${error.message}</p>`);
+      })
+      .finally(() => {
+        this.promptUi.hideLoading();
+      });
+  }
+
   // Main method to handle the menu action and call the API
   handle() {
     try {
@@ -230,10 +267,16 @@ class PromptHandler {
           createPayload: () => this.createGeminiPayload(),
           callApi: (payload) => this.callGeminiAPI(payload),
         },
+        deepseek: {
+          createPayload: () => this.createOllamaPayload(),
+          callApi: (payload) => this.callOllamaApi(payload),
+        },
       };
 
       const { createPayload, callApi } =
-        actionMap[this.selectedAI] || actionMap.gemini;
+        actionMap[
+          this.selectedAI.includes("deepseek") ? "deepseek" : this.selectedAI
+        ] || actionMap.gemini;
 
       const payload = createPayload();
 
