@@ -86,6 +86,11 @@ document.addEventListener("DOMContentLoaded", () => {
   chrome.storage.local.get("DATA", (result) => {
     const info = result.DATA;
 
+    if (!info) {
+      getOllamaModels("gemini");
+      return;
+    }
+
     if (info.gptKey) {
       gptKey.value = DEFAULT_KEY;
       gptKey.type = "password";
@@ -104,5 +109,36 @@ document.addEventListener("DOMContentLoaded", () => {
     if (info.grokEndpoint) grokEndpoint.value = info.grokEndpoint;
 
     if (info.selectedAI) selectedAI.value = info.selectedAI;
+
+    getOllamaModels(info.selectedAI);
   });
 });
+
+const getOllamaModels = (selectedModel) => {
+  chrome.runtime.sendMessage(
+    { action: "callOllamaApi", tags: true },
+    (response) => {
+      const selectedAI = document.getElementById("toggle");
+      if (!response.success) {
+        const optgroup = document.createElement("optgroup");
+        optgroup.label = "No Ollama Models Found";
+        selectedAI.appendChild(optgroup);
+      } else {
+        const models = response.data.models;
+        const optgroup = document.createElement("optgroup");
+        optgroup.label = "Ollama Local Models";
+        models.forEach((model) => {
+          const option = document.createElement("option");
+          option.value = model.model;
+          option.text = model.name;
+          optgroup.appendChild(option);
+        });
+
+        selectedAI.appendChild(optgroup);
+        if (selectedModel) {
+          selectedAI.value = selectedModel;
+        }
+      }
+    }
+  );
+};
