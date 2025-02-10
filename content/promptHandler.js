@@ -224,26 +224,36 @@ class PromptHandler {
       });
   }
 
+  /*
+   * Some models provide Markdown formatted data, but it doesn't parse properly, hence removing that part here.
+   */
+  removeMarkdownMarkers(markdownText) {
+    const regex = /```markdown\n([\s\S]*?)\n```/g;
+    return markdownText.replace(regex, "$1"); // $1 refers to the captured group
+  }
+
+  /*
+   * Called the API through `background.js` because of Chrome's CORS policy.
+   */
   callOllamaApi(payload) {
     this.promptUi.showLoading();
-    return fetch("http://localhost:11434/api/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        const result = data.response || "No response";
-        this.promptUi.showModal(`<p>${result}</p>`, result);
-      })
-      .catch((error) => {
-        this.promptUi.showModal(`<p>Error: ${error.message}</p>`);
-      })
-      .finally(() => {
-        this.promptUi.hideLoading();
-      });
+    chrome.runtime.sendMessage(
+      { action: "callOllamaApi", payload },
+      (response) => {
+        if (!response.success) {
+          this.promptUi.showModal(`<p>Error: ${response.error}</p>`);
+          this.promptUi.hideLoading();
+        } else {
+          const res = response.data.message.content.replace(
+            /<think>[\s\S]*?<\/think>/g, // It will remove the reasoning portion
+            ""
+          );
+          const result = this.removeMarkdownMarkers(res) || "No response";
+          this.promptUi.showModal(`<p>${result}</p>`, result);
+          this.promptUi.hideLoading();
+        }
+      }
+    );
   }
 
   // Main method to handle the menu action and call the API
@@ -267,7 +277,7 @@ class PromptHandler {
           createPayload: () => this.createGeminiPayload(),
           callApi: (payload) => this.callGeminiAPI(payload),
         },
-        deepseek: {
+        ollama: {
           createPayload: () => this.createOllamaPayload(),
           callApi: (payload) => this.callOllamaApi(payload),
         },
@@ -275,7 +285,9 @@ class PromptHandler {
 
       const { createPayload, callApi } =
         actionMap[
-          this.selectedAI.includes("deepseek") ? "deepseek" : this.selectedAI
+          ["gpt", "grok", "gemini"].includes(this.selectedAI)
+            ? this.selectedAI
+            : "ollama"
         ] || actionMap.gemini;
 
       const payload = createPayload();
