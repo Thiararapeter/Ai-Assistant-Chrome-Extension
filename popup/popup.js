@@ -39,18 +39,6 @@ document.getElementById("saveButton").addEventListener("click", () => {
 
   const selectedAI = document.getElementById("toggle").value;
 
-  if (
-    !gptKey ||
-    !geminiKey ||
-    !gptEndpoint ||
-    !geminiEndpoint ||
-    !grokKey ||
-    !grokEndpoint
-  ) {
-    alert("Please fill in all fields.");
-    return;
-  }
-
   chrome.storage.local.get("DATA", ({ DATA }) => {
     const newData = {
       gptKey: gptKey !== DEFAULT_KEY ? gptKey : DATA.gptKey,
